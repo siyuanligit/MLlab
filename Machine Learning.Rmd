@@ -1,0 +1,121 @@
+---
+title: "Machine Learning Lab"
+author: "YiYang Cao"
+date: "November 8, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+
+Orders$Sales <- as.numeric(gsub('[$,]', '', Orders$Sales))
+Orders$Profit <- as.numeric(gsub('[$,]', '', Orders$Profit))
+
+```
+
+## 2
+
+```{r pressure, echo=FALSE}
+
+Orders$Order.Date <- mdy(Orders$Order.Date)
+Orders$Ship.Date <- mdy(Orders$Ship.Date)
+
+Orders %>% 
+  mutate(Order.Month = month(Order.Date, label = TRUE),
+         Ship.Month = month(Ship.Date, label = TRUE)) %>% 
+  group_by(Order.Month, Category) %>%
+  summarise(Inventory = sum(Quantity)) %>% 
+  ggplot(aes(x = Order.Month, y = Inventory, fill = Order.Month)) +
+  geom_col() +
+  facet_grid(~Category)
+
+```
+
+## 3
+
+```{r returns}
+
+Returns2 = left_join(Returns, Orders, by = "Order.ID")
+
+### Profit Lost
+
+Returns2 %>% 
+  select(., Profit) %>%
+  group_by() %>% 
+  sum()
+
+### 61370.75
+
+### Multiple Returns
+
+Returns2 %>% 
+  select(., Customer.ID) %>% 
+  group_by(Customer.ID) %>% 
+  summarise(nreturn = n()) %>% 
+  filter(nreturn > 1) %>%
+  nrow()
+### 547
+  
+### Greater than 5
+
+Returns2 %>% 
+  select(., Customer.ID) %>% 
+  group_by(Customer.ID) %>% 
+  summarise(nreturn = n()) %>% 
+  filter(nreturn > 5) %>%
+  nrow()
+### 46
+
+### Regions
+
+Returns %>% 
+  mutate(., Region = case_when('Eastern Canada', Region), 'Canada', Region) %>% 
+  mutate(., Region = case_when('Western Canada', Region), 'Canada', Region)) -> Returns2
+
+Orders %>% 
+  select(Order.ID, Region) %>% 
+  distinct() %>% 
+  left_join(Returns_Canada, by = c("Order.ID", "Region")) %>% 
+  group_by(Region) %>% 
+  summarise(rt = sum(!is.na(Returned)), rf = sum(is.na(Returned))) %>% 
+  mutate(p = rt/(rt+rf)) -> Orders_region
+
+### Categories
+
+Orders %>% 
+  select(Order.ID, Region, Category, Sub.Category) %>% 
+  left_join(Returns, by = c("Order.ID", "Region")) -> Orders3
+
+Orders3 %>% 
+  group_by(Category, Sub.Category) %>% 
+  summarise(rt = sum(!is.na(Returned)), rf = sum(is.na(Returned))) %>% 
+  mutate(p = rt/(rt+rf)) -> Orders_cat
+  
+
+```
+
+
+#### PART II
+
+#### 4
+
+```{r machine learning}
+
+
+```
