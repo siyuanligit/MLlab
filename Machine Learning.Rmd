@@ -1,0 +1,173 @@
+---
+title: "Machine Learning Lab"
+author: "YiYang Cao"
+date: "November 8, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(psych)
+library(caret)
+
+Orders = read.csv("../data/Orders.csv")
+
+
+Orders$Sales <- as.numeric(gsub('[$,]', '', Orders$Sales))
+Orders$Profit <- as.numeric(gsub('[$,]', '', Orders$Profit))
+
+```
+
+## 2
+
+```{r pressure, echo=FALSE}
+
+Orders$Order.Date <- mdy(Orders$Order.Date)
+Orders$Ship.Date <- mdy(Orders$Ship.Date)
+
+Orders %>% 
+  mutate(Order.Month = month(Order.Date, label = TRUE),
+         Ship.Month = month(Ship.Date, label = TRUE)) %>% 
+  group_by(Order.Month, Category) %>%
+  summarise(Inventory = sum(Quantity)) %>% 
+  ggplot(aes(x = Order.Month, y = Inventory, fill = Order.Month)) +
+  geom_col() +
+  facet_grid(~Category)
+
+```
+
+## 3
+
+```{r returns}
+
+Returns2 = left_join(Returns, Orders, by = "Order.ID")
+
+### Profit Lost
+
+Returns2 %>% 
+  select(., Profit) %>%
+  group_by() %>% 
+  sum()
+
+### 61370.75
+
+### Multiple Returns
+
+Returns2 %>% 
+  select(., Customer.ID) %>% 
+  group_by(Customer.ID) %>% 
+  summarise(nreturn = n()) %>% 
+  filter(nreturn > 1) %>%
+  nrow()
+### 547
+  
+### Greater than 5
+
+Returns2 %>% 
+  select(., Customer.ID) %>% 
+  group_by(Customer.ID) %>% 
+  summarise(nreturn = n()) %>% 
+  filter(nreturn > 5) %>%
+  nrow()
+### 46
+
+### Regions
+
+Returns %>% 
+  mutate(., Region = case_when('Eastern Canada', Region), 'Canada', Region) %>% 
+  mutate(., Region = case_when('Western Canada', Region), 'Canada', Region) -> Returns3
+
+Orders %>% 
+  select(Order.ID, Region) %>% 
+  distinct() %>% 
+  left_join(Returns, by = c("Order.ID", "Region")) %>% 
+  group_by(Region) %>% 
+  summarise(rt = sum(!is.na(Returned)), rf = sum(is.na(Returned))) %>% 
+  mutate(p = rt/(rt+rf)) -> Orders_region
+
+### Categories
+
+Orders %>% 
+  select(Order.ID, Region, Category, Sub.Category) %>% 
+  left_join(Returns, by = c("Order.ID", "Region")) -> Orders3
+
+Orders3 %>% 
+  group_by(Category, Sub.Category) %>% 
+  summarise(rt = sum(!is.na(Returned)), rf = sum(is.na(Returned))) %>% 
+  mutate(p = rt/(rt+rf)) -> Orders_cat
+  
+
+```
+
+
+#### PART II
+
+#### 4
+
+```{r machine learning}
+
+Orders %>% 
+  select(Order.ID, Order.Date, Ship.Date, Category, Sub.Category, Product.Name) %>% 
+  left_join(Returns, by = c("Order.ID")) %>% 
+  mutate(Process.Time = Ship.Date - Order.Date) %>% 
+  group_by(Process.Time) %>% 
+  filter(Returned != "NA") -> Process.Speed
+
+Orders %>% 
+  select(Order.ID, Category, Sub.Category, Product.Name) %>% 
+  left_join(Returns, by = c("Order.ID")) %>% 
+  select(Product.Name, Returned) %>% 
+  group_by(Product.Name) %>% 
+  summarise(total = sum(!is.na(Returned))) -> Returned.Items
+  
+```
+
+#### 5
+
+```{r machine learning}
+
+library(h2o)
+
+Orders %>% 
+  left_join(Returns, by = c("Order.ID")) %>% 
+  dplyr::select(-contains("ID"), -Region.y) -> Orders.ml
+
+Orders.ml %>% 
+  mutate(Returned = ifelse(is.na(Returned), 0, 1)) -> Orders.ml
+
+h2o.init(ip = 'localhost', port = 54321, nthreads= -1)
+
+predictors = names(train[which(names(train) != "Returned")])
+
+set.seed(7)
+trainId = sample(1:nrow(Orders.ml), 0.8*nrow(Orders.ml))
+trainSet = Orders.ml[trainId,]
+testSet = Orders.ml[-trainId,]
+train = as.h2o(trainSet)
+test = as.h2o(testSet)
+
+h2o.glm(x = predictors, y = "Returned", training_frame = train, family = "binomial")
+
+h2o.glm(x = predictors, y = "Returned", training_frame = train, family = "binomial", 
+        alpha = 1, lambda = 0, nfolds = 10)
+
+
+
+```
+
