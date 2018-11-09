@@ -144,5 +144,9 @@ train = rfMLdata[trainIdx$Resample1,]
 test = rfMLdata[-trainIdx$Resample1,]
 
 library(glmnet)
+#create this model later
 
+#I think confusion matrix is very valuable here, since I would think we would want
+#more to avoid false positives than false negatives so as to avoid upsetting
+#customers. I need to do more work on gbm and optimize parameters for all models.
 
