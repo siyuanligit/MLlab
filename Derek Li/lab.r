@@ -150,6 +150,7 @@ glm_final = h2o.glm(x = predictors, y = response, training_frame = train,
               family = "binomial", alpha = 1, lambda = lambda,
               nfolds = 10)
 h2o.auc(h2o.performance(glm_final, test))
+h2o.confusionMatrix(h2o.performance(glm_final, test))
 glm_final@model$coefficients_table
 # 0.7416 AUC
 
