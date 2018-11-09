@@ -3,6 +3,7 @@
 library(ggplot2)
 library(lubridate)
 library(dplyr)
+library(caret)
 
 orders = read.csv("../data/Orders.csv")
 returns = read.csv("../data/Returns.csv")
@@ -67,6 +68,81 @@ orders_returns %>% group_by(., Category, Sub.Category) %>%
   arrange(., desc(Return.Rate))
 
 
+# Part 2-4-1:
+was_returned = orders_returns$Returned
 
+# Part 2-4-2:
+orders_returns$Ship.Date = as.Date(orders_returns$Ship.Date, "%m/%d/%y")
+orders_returns$Process.Time = as.numeric(as.duration(orders_returns$Order.Date %--%
+                                            orders_returns$Ship.Date)) / (24*60*60)
+
+#Part 2-4-3:
+orders_returns = orders_returns %>% group_by(., Product.ID) %>%
+  mutate(., Num.Returns = sum(Returned)) %>% ungroup(.)
+
+#Part 5
+set.seed(123)
+
+names(orders_returns)
+
+MLdata = select(orders_returns, Ship.Mode, Segment, Postal.Code, Country,
+                Buy.Region, Market, Category, Sub.Category, Sales, Quantity,
+                Discount, Profit, Shipping.Cost, Order.Priority,
+                month, Process.Time, Num.Returns, Returned)
+
+#final cleaning
+#missing vals:
+colSums(is.na(MLdata))
+MLdata$Postal.Code = ifelse(is.na(MLdata$Postal.Code), 0, MLdata$Postal.Code)
+str(MLdata)
+MLdata$Postal.Code = as.factor(MLdata$Postal.Code)
+MLdata$month = as.factor(MLdata$month)
+MLdata$Returned = as.factor(MLdata$Returned)
+
+
+#make train - test split
+trainIdx = createDataPartition(MLdata$Returned, p = .8)
+
+#make randomforest model
+library(randomForest)
+#drop country and postal code because too many levels, info hopefully
+#somewhat captured by region.
+rfMLdata = MLdata[, !(names(MLdata) %in% c("Postal.Code","Country"))]
+
+train = rfMLdata[trainIdx$Resample1,]
+test = rfMLdata[-trainIdx$Resample1,]
+
+rfModel1 = randomForest(Returned ~ ., data = rfMLdata, subset = trainIdx$Resample1,
+                        importance = TRUE)
+
+rfpredicts = predict(rfModel1, newdata = test)
+table(rfpredicts, test$Returned)
+
+#make boosting model
+library(gbm)
+
+gbmMLdata = select(rfMLdata, Sales, Quantity, Discount, Profit, Shipping.Cost,
+                   Process.Time, Num.Returns, Returned)
+
+gbmMLdata$Returned = as.character(gbmMLdata$Returned)
+
+train = gbmMLdata[trainIdx$Resample1,]
+test = gbmMLdata[-trainIdx$Resample1,]
+
+boostModel1 = gbm(Returned ~ ., data = train, distribution = "bernoulli",
+                  n.trees = 500, interaction.depth = 4)
+
+
+boost_predicts = round(predict(boostModel1, newdata = test,
+                         n.trees = 500, type = "response"))
+
+table(boost_predicts, test$Returned)
+
+
+#Lasso
+train = rfMLdata[trainIdx$Resample1,]
+test = rfMLdata[-trainIdx$Resample1,]
+
+library(glmnet)
 
 
